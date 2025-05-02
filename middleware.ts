@@ -5,7 +5,6 @@ import { getToken } from "next-auth/jwt";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Get user token
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET,
@@ -16,46 +15,43 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith(route)
   );
 
-  // If not logged in and accessing protected route
   if (!token && !isPublicRoute) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // If logged in and trying to access auth pages
   if (token && isPublicRoute) {
-    // Redirect based on role
-    if (token.role === "admin") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
-    } else if (token.role === "seller") {
-      return NextResponse.redirect(new URL("/seller-dashboard", request.url));
-    } else if (token.role === "bidder") {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+    // Redirect logged-in users away from auth pages
+    return redirectToDashboard(token.role, request);
   }
 
-  // Protect role-based pages
-  if (pathname.startsWith("/dashboard")) {
-    if (token?.role !== "admin") {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+  // Protect admin routes
+  if (pathname.startsWith("/dashboard") && token?.role !== "admin") {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
-  if (pathname.startsWith("/seller-dashboard")) {
-    if (token?.role !== "seller") {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+  // Protect seller routes
+  if (pathname.startsWith("/seller-dashboard") && token?.role !== "seller") {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
-  if (pathname.startsWith("/account")) {
-    if (token?.role !== "bidder") {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+  // Protect bidder routes
+  if (pathname.startsWith("/account") && token?.role !== "bidder") {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return NextResponse.next();
 }
 
-// Protect these routes
+function redirectToDashboard(role: string, request: NextRequest) {
+  if (role === "admin") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+  if (role === "seller") {
+    return NextResponse.redirect(new URL("/seller-dashboard", request.url));
+  }
+  return NextResponse.redirect(new URL("/", request.url)); // default for bidders or others
+}
+
 export const config = {
   matcher: [
     "/dashboard/:path*",
